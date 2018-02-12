@@ -1,0 +1,108 @@
+﻿using UnityEngine;
+using UnityEditor;
+using System.Collections.Generic;
+
+
+public class NodeEditor : EditorWindow
+{
+    List<Rect> windows = new List<Rect>();
+    List<int> windowsToAttach = new List<int>();
+    List<int> attachedWindows = new List<int>();
+    List<CraneNode> attachNodes = new List<CraneNode>();
+    CranePath currentGo;
+
+    [MenuItem("Window/Node editor")]
+    static void ShowEditor()
+    {
+        NodeEditor editor = EditorWindow.GetWindow<NodeEditor>();
+    }
+
+
+    void OnGUI()
+    {
+        if (windowsToAttach.Count == 2)
+        {
+           
+            Undo.RecordObject(currentGo, "connection");
+            attachedWindows.Add(windowsToAttach[0]);
+            attachedWindows.Add(windowsToAttach[1]);
+            attachNodes[0].Connect(attachNodes[1]);
+            windowsToAttach = new List<int>();
+            attachNodes = new List<CraneNode>();
+            EditorUtility.SetDirty(currentGo);
+        }
+
+        if (attachedWindows.Count >= 2)
+        {
+            for (int i = 0; i < attachedWindows.Count; i += 2)
+            {
+                DrawNodeCurve(windows[attachedWindows[i]], windows[attachedWindows[i + 1]]);
+            }
+        }
+
+        BeginWindows();
+
+        if (GUILayout.Button("Create Node"))
+        {
+            windows.Add(new Rect(10, 10, 100, 100));
+        }
+
+        for (int i = 0; i < windows.Count; i++)
+        {
+            windows[i] = GUI.Window(i, windows[i], DrawNodeWindow, "Window " + i);
+        }
+
+        if (Event.current.type == EventType.DragExited)
+        {
+            Debug.Log("DragExit event, mousePos:" + Event.current.mousePosition + "window pos:" + position);
+
+            foreach (Object obj in DragAndDrop.objectReferences)
+            {
+                if (obj.GetType() == typeof(GameObject))
+                {
+                    windows = new List<Rect>();
+                    if (((GameObject)obj).GetComponent<CranePath>())
+                    {
+                        currentGo = ((GameObject)obj).GetComponent<CranePath>();
+
+                        foreach (var node in currentGo.nodes)
+                        {
+                            windows.Add(new Rect(10, 10, 100, 100));
+                            node.connections = new List<Connection>();
+                        }
+                    }
+                }
+            }
+        }
+        EndWindows();
+    }
+
+
+    void DrawNodeWindow(int id)
+    {
+        GUILayout.Label(currentGo.nodes[id].position.ToString());
+        if (GUILayout.Button("Attach"))
+        {
+            windowsToAttach.Add(id);
+            attachNodes.Add(currentGo.nodes[id]);
+        }
+        GUI.DragWindow();
+    }
+
+
+    void DrawNodeCurve(Rect start, Rect end)
+    {
+        Vector3 startPos = new Vector3(start.x + start.width, start.y + start.height / 2, 0);
+        Vector3 endPos = new Vector3(end.x, end.y + end.height / 2, 0);
+        Vector3 startTan = startPos + Vector3.right * 50;
+        Vector3 endTan = endPos + Vector3.left * 50;
+        Color shadowCol = new Color(0, 0, 0, 0.06f);
+
+        for (int i = 0; i < 3; i++)
+        {// Draw a shadow
+            Handles.DrawBezier(startPos, endPos, startTan, endTan, shadowCol, null, (i + 1) * 5);
+        }
+
+        Handles.DrawBezier(startPos, endPos, startTan, endTan, Color.black, null, 1);
+    }
+}
